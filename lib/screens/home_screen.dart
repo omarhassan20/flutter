@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../widgets/task_item_widget.dart';
+import 'calendar_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -12,126 +13,169 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   List<Map<String, dynamic>> tasks = [];
+  String selectedDayKey = '';
 
   @override
   void initState() {
     super.initState();
-    loadTasks();
+    loadSelectedDay();
   }
 
+  // ---------- DATE ----------
+  String formatDate(String key) {
+    final parts = key.split('-');
+    final date = DateTime(
+      int.parse(parts[0]),
+      int.parse(parts[1]),
+      int.parse(parts[2]),
+    );
+
+    const days = [
+      'Monday',
+      'Tuesday',
+      'Wednesday',
+      'Thursday',
+      'Friday',
+      'Saturday',
+      'Sunday'
+    ];
+
+    return '${days[date.weekday - 1]}, '
+        '${date.day}/${date.month}/${date.year}';
+  }
+
+  // ---------- LOAD ----------
+  Future<void> loadSelectedDay() async {
+    final prefs = await SharedPreferences.getInstance();
+    final key = prefs.getString('selected_day');
+
+    setState(() {
+      selectedDayKey = key ??
+          '${DateTime.now().year}-${DateTime.now().month}-${DateTime.now().day}';
+    });
+
+    loadTasksForDay();
+  }
+
+  Future<void> loadTasksForDay() async {
+    final prefs = await SharedPreferences.getInstance();
+    final data = prefs.getString('calendar_tasks');
+
+    if (data == null) {
+      setState(() => tasks = []);
+      return;
+    }
+
+    final decoded = jsonDecode(data) as Map<String, dynamic>;
+    final list = decoded[selectedDayKey] ?? [];
+
+    setState(() {
+      tasks = List<Map<String, dynamic>>.from(
+        list.map((e) => {
+              'text': e['text'],
+              'done': e['done'],
+            }),
+      );
+    });
+  }
+
+  // ---------- SAVE ----------
   Future<void> saveTasks() async {
     final prefs = await SharedPreferences.getInstance();
-    final data = tasks.map((e) => jsonEncode(e)).toList();
-    await prefs.setStringList('tasks', data);
+    final data = prefs.getString('calendar_tasks');
+
+    Map<String, dynamic> decoded = data != null ? jsonDecode(data) : {};
+
+    decoded[selectedDayKey] = tasks;
+
+    await prefs.setString('calendar_tasks', jsonEncode(decoded));
   }
 
-  Future<void> loadTasks() async {
-    final prefs = await SharedPreferences.getInstance();
-    final data = prefs.getStringList('tasks');
-    if (data != null) {
-      setState(() {
-        tasks = data.map((e) => jsonDecode(e) as Map<String, dynamic>).toList();
-      });
-    }
-  }
-
-  void addTask(String title) {
+  // ---------- ACTIONS ----------
+  void addTask(String text) {
     setState(() {
-      tasks.add({'title': title, 'done': false});
+      tasks.add({'text': text, 'done': false});
     });
     saveTasks();
   }
 
-  void toggleTask(int index) {
+  void toggleDone(int i) {
     setState(() {
-      tasks[index]['done'] = !tasks[index]['done'];
+      tasks[i]['done'] = !tasks[i]['done'];
     });
     saveTasks();
   }
 
-  void deleteTask(int index) {
+  void deleteTask(int i) {
     setState(() {
-      tasks.removeAt(index);
+      tasks.removeAt(i);
     });
     saveTasks();
   }
 
-  void editTask(int index, String newTitle) {
+  void editTask(int i, String newText) {
     setState(() {
-      tasks[index]['title'] = newTitle;
+      tasks[i]['text'] = newText;
     });
     saveTasks();
   }
 
-  void _showAddTaskDialog(BuildContext context) {
-    final TextEditingController controller = TextEditingController();
+  // ---------- DIALOGS ----------
+  void showAddDialog() {
+    final c = TextEditingController();
 
     showDialog(
       context: context,
-      builder: (context) {
-        return AlertDialog(
-          title: const Text('إضافة مهمة جديدة'),
-          content: TextField(
-            controller: controller,
-            decoration: const InputDecoration(
-              hintText: 'اكتب المهمة هنا',
-            ),
+      builder: (_) => AlertDialog(
+        title: const Text('Add Task'),
+        content: TextField(controller: c),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
           ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('إلغاء'),
-            ),
-            ElevatedButton(
-              onPressed: () {
-                if (controller.text.trim().isNotEmpty) {
-                  addTask(controller.text.trim());
-                  Navigator.pop(context);
-                }
-              },
-              child: const Text('إضافة'),
-            ),
-          ],
-        );
-      },
+          ElevatedButton(
+            onPressed: () {
+              if (c.text.trim().isNotEmpty) {
+                addTask(c.text.trim());
+                Navigator.pop(context);
+              }
+            },
+            child: const Text('Add'),
+          ),
+        ],
+      ),
     );
   }
 
-  void _showEditTaskDialog(BuildContext context, int index) {
-    final TextEditingController controller =
-        TextEditingController(text: tasks[index]['title']);
+  void showEditDialog(int i) {
+    final c = TextEditingController(text: tasks[i]['text']);
 
     showDialog(
       context: context,
-      builder: (context) {
-        return AlertDialog(
-          title: const Text('تعديل المهمة'),
-          content: TextField(
-            controller: controller,
-            decoration: const InputDecoration(
-              hintText: 'عدّل المهمة',
-            ),
+      builder: (_) => AlertDialog(
+        title: const Text('Edit Task'),
+        content: TextField(controller: c),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
           ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('إلغاء'),
-            ),
-            ElevatedButton(
-              onPressed: () {
-                if (controller.text.trim().isNotEmpty) {
-                  editTask(index, controller.text.trim());
-                  Navigator.pop(context);
-                }
-              },
-              child: const Text('حفظ'),
-            ),
-          ],
-        );
-      },
+          ElevatedButton(
+            onPressed: () {
+              if (c.text.trim().isNotEmpty) {
+                editTask(i, c.text.trim());
+                Navigator.pop(context);
+              }
+            },
+            child: const Text('Save'),
+          ),
+        ],
+      ),
     );
   }
 
+  // ---------- UI ----------
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -139,47 +183,65 @@ class _HomeScreenState extends State<HomeScreen> {
         title: const Text('My Tasks'),
         centerTitle: true,
       ),
-      body: Stack(
-        children: [
-          tasks.isEmpty
-              ? const Center(child: Text('مفيش مهام'))
-              : ListView.builder(
-                  padding: const EdgeInsets.only(bottom: 120),
-                  itemCount: tasks.length,
-                  itemBuilder: (context, index) {
-                    return TaskItemWidget(
-                      title: tasks[index]['title'],
-                      isDone: tasks[index]['done'],
-                      onToggle: () => toggleTask(index),
-                      onDelete: () => deleteTask(index),
-                      onEdit: () => _showEditTaskDialog(context, index),
-                    );
-                  },
-                ),
-
-          // زرار الإضافة الأصفر في النص
-          Center(
-            child: ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.yellow,
-                foregroundColor: Colors.black,
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 30, vertical: 16),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(30),
-                ),
+      drawer: Drawer(
+        child: ListView(
+          children: [
+            const DrawerHeader(
+              decoration: BoxDecoration(color: Colors.deepPurple),
+              child: Text(
+                'Menu',
+                style: TextStyle(color: Colors.white, fontSize: 22),
               ),
-              onPressed: () => _showAddTaskDialog(context),
-              child: const Text(
-                'إضافة مهمة',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                ),
+            ),
+            ListTile(
+              leading: const Icon(Icons.calendar_month),
+              title: const Text('Calendar'),
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => const CalendarScreen(),
+                  ),
+                ).then((_) => loadSelectedDay());
+              },
+            ),
+          ],
+        ),
+      ),
+      body: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // 🔹 التاريخ المختار
+          Padding(
+            padding: const EdgeInsets.all(12),
+            child: Text(
+              formatDate(selectedDayKey),
+              style: const TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
               ),
             ),
           ),
+          Expanded(
+            child: tasks.isEmpty
+                ? const Center(child: Text('No tasks for this day'))
+                : ListView.builder(
+                    itemCount: tasks.length,
+                    itemBuilder: (_, i) => TaskItemWidget(
+                      text: tasks[i]['text'],
+                      done: tasks[i]['done'],
+                      onToggle: () => toggleDone(i),
+                      onDelete: () => deleteTask(i),
+                      onEdit: () => showEditDialog(i),
+                    ),
+                  ),
+          ),
         ],
+      ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: showAddDialog,
+        child: const Icon(Icons.add),
       ),
     );
   }
