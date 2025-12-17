@@ -1,8 +1,11 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+
 import '../widgets/task_item_widget.dart';
 import 'calendar_screen.dart';
+import 'timer_screen.dart';
+import 'about_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -21,7 +24,7 @@ class _HomeScreenState extends State<HomeScreen> {
     loadSelectedDay();
   }
 
-  // ---------- DATE ----------
+  // ---------- DATE FORMAT ----------
   String formatDate(String key) {
     final parts = key.split('-');
     final date = DateTime(
@@ -85,7 +88,6 @@ class _HomeScreenState extends State<HomeScreen> {
     final data = prefs.getString('calendar_tasks');
 
     Map<String, dynamic> decoded = data != null ? jsonDecode(data) : {};
-
     decoded[selectedDayKey] = tasks;
 
     await prefs.setString('calendar_tasks', jsonEncode(decoded));
@@ -183,6 +185,8 @@ class _HomeScreenState extends State<HomeScreen> {
         title: const Text('My Tasks'),
         centerTitle: true,
       ),
+
+      // 📌 Drawer
       drawer: Drawer(
         child: ListView(
           children: [
@@ -193,6 +197,8 @@ class _HomeScreenState extends State<HomeScreen> {
                 style: TextStyle(color: Colors.white, fontSize: 22),
               ),
             ),
+
+            // 📅 Calendar
             ListTile(
               leading: const Icon(Icons.calendar_month),
               title: const Text('Calendar'),
@@ -206,13 +212,47 @@ class _HomeScreenState extends State<HomeScreen> {
                 ).then((_) => loadSelectedDay());
               },
             ),
+
+            // ⏱️ Timer (قبل About)
+            ListTile(
+              leading: const Icon(Icons.timer),
+              title: const Text('Task Timer'),
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => TimerScreen(
+                      tasks: tasks.map((e) => e['text'] as String).toList(),
+                    ),
+                  ),
+                );
+              },
+            ),
+
+            // ℹ️ About
+            ListTile(
+              leading: const Icon(Icons.info),
+              title: const Text('About'),
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => const AboutScreen(),
+                  ),
+                );
+              },
+            ),
           ],
         ),
       ),
+
+      // ---------- BODY ----------
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // 🔹 التاريخ المختار
+          // 📅 التاريخ المختار
           Padding(
             padding: const EdgeInsets.all(12),
             child: Text(
@@ -223,6 +263,8 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
             ),
           ),
+
+          // 📝 Tasks
           Expanded(
             child: tasks.isEmpty
                 ? const Center(child: Text('No tasks for this day'))
@@ -239,6 +281,8 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         ],
       ),
+
+      // ➕ Add Task
       floatingActionButton: FloatingActionButton(
         onPressed: showAddDialog,
         child: const Icon(Icons.add),
