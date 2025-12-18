@@ -4,7 +4,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../widgets/task_item_widget.dart';
 import 'calendar_screen.dart';
-import 'timer_screen.dart';
+import 'settings_screen.dart';
 import 'about_screen.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -17,6 +17,9 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   List<Map<String, dynamic>> tasks = [];
   String selectedDayKey = '';
+
+  bool isSearching = false;
+  String searchText = '';
 
   @override
   void initState() {
@@ -130,7 +133,10 @@ class _HomeScreenState extends State<HomeScreen> {
       context: context,
       builder: (_) => AlertDialog(
         title: const Text('Add Task'),
-        content: TextField(controller: c),
+        content: TextField(
+          controller: c,
+          decoration: const InputDecoration(hintText: 'Task text'),
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
@@ -156,7 +162,7 @@ class _HomeScreenState extends State<HomeScreen> {
     showDialog(
       context: context,
       builder: (_) => AlertDialog(
-        title: const Text('Edit Task'),
+        title: const Text('Edit'),
         content: TextField(controller: c),
         actions: [
           TextButton(
@@ -177,13 +183,61 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  // ---------- FILTER ----------
+  List<Map<String, dynamic>> get filteredTasks {
+    if (searchText.isEmpty) return tasks;
+
+    return tasks
+        .where((task) => task['text']
+            .toString()
+            .toLowerCase()
+            .contains(searchText.toLowerCase()))
+        .toList();
+  }
+
   // ---------- UI ----------
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    var scaffold = Scaffold(
       appBar: AppBar(
-        title: const Text('My Tasks'),
+        title: isSearching
+            ? TextField(
+                autofocus: true,
+                decoration: const InputDecoration(
+                  hintText: 'Search...',
+                  border: InputBorder.none,
+                ),
+                onChanged: (value) {
+                  setState(() {
+                    searchText = value;
+                  });
+                },
+              )
+            : const Text('My Tasks'),
         centerTitle: true,
+        actions: [
+          // 🔍 أيقونة البحث
+          IconButton(
+            icon: Icon(isSearching ? Icons.close : Icons.search),
+            onPressed: () {
+              setState(() {
+                isSearching = !isSearching;
+                searchText = '';
+              });
+            },
+          ),
+
+          // ⚙️ أيقونة الإعدادات
+          IconButton(
+            icon: const Icon(Icons.settings),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const SettingsScreen()),
+              );
+            },
+          ),
+        ],
       ),
 
       // 📌 Drawer
@@ -197,8 +251,6 @@ class _HomeScreenState extends State<HomeScreen> {
                 style: TextStyle(color: Colors.white, fontSize: 22),
               ),
             ),
-
-            // 📅 Calendar
             ListTile(
               leading: const Icon(Icons.calendar_month),
               title: const Text('Calendar'),
@@ -212,25 +264,6 @@ class _HomeScreenState extends State<HomeScreen> {
                 ).then((_) => loadSelectedDay());
               },
             ),
-
-            // ⏱️ Timer (قبل About)
-            ListTile(
-              leading: const Icon(Icons.timer),
-              title: const Text('Task Timer'),
-              onTap: () {
-                Navigator.pop(context);
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => TimerScreen(
-                      tasks: tasks.map((e) => e['text'] as String).toList(),
-                    ),
-                  ),
-                );
-              },
-            ),
-
-            // ℹ️ About
             ListTile(
               leading: const Icon(Icons.info),
               title: const Text('About'),
@@ -249,44 +282,62 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
 
       // ---------- BODY ----------
-      body: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // 📅 التاريخ المختار
-          Padding(
-            padding: const EdgeInsets.all(12),
-            child: Text(
-              formatDate(selectedDayKey),
-              style: const TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-              ),
+      body: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        // 📅 التاريخ المختار
+        Padding(
+          padding: const EdgeInsets.all(12),
+          child: Text(
+            formatDate(selectedDayKey),
+            style: const TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
             ),
           ),
+        ),
 
-          // 📝 Tasks
-          Expanded(
-            child: tasks.isEmpty
-                ? const Center(child: Text('No tasks for this day'))
-                : ListView.builder(
-                    itemCount: tasks.length,
-                    itemBuilder: (_, i) => TaskItemWidget(
-                      text: tasks[i]['text'],
-                      done: tasks[i]['done'],
-                      onToggle: () => toggleDone(i),
-                      onDelete: () => deleteTask(i),
-                      onEdit: () => showEditDialog(i),
-                    ),
-                  ),
-          ),
-        ],
-      ),
+        // 📝 Tasks
+        Expanded(
+          child: tasks.isEmpty
+              ? const Center(child: Text('No tasks for this day'))
+              : ListView.builder(
+                  itemCount: tasks.length,
+                  itemBuilder: (_, i) {
+                    return Dismissible(
+                      key: ValueKey('${tasks[i]['text']}_$i'),
 
-      // ➕ Add Task
+                      direction: DismissDirection.endToStart, // 👈 سحب شمال بس
+
+                      onDismissed: (_) {
+                        deleteTask(i);
+                      },
+
+                      background: Container(
+                        alignment: Alignment.centerRight,
+                        padding: const EdgeInsets.only(right: 20),
+                        color: Colors.red,
+                        child: const Icon(
+                          Icons.delete,
+                          color: Colors.white,
+                        ),
+                      ),
+
+                      child: TaskItemWidget(
+                        text: tasks[i]['text'],
+                        done: tasks[i]['done'],
+                        onToggle: () => toggleDone(i),
+                        onEdit: () => showEditDialog(i),
+                        onDelete: () {}, // ❌ مش مستخدم
+                      ),
+                    );
+                  },
+                ),
+        )
+      ]),
       floatingActionButton: FloatingActionButton(
         onPressed: showAddDialog,
         child: const Icon(Icons.add),
       ),
     );
+    return scaffold;
   }
 }

@@ -18,37 +18,34 @@ class TaskItemWidget extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Dismissible(
-      key: Key(text),
-      direction: DismissDirection.endToStart,
-      background: Container(),
-      onDismissed: (_) => onDelete(),
-      child: Container(
-        margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: Colors.grey.shade200,
-          borderRadius: BorderRadius.circular(12),
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return Card(
+      color: isDark ? const Color(0xFF1E1E1E) : Colors.white,
+      margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      child: ListTile(
+        leading: Checkbox(
+          value: done,
+          onChanged: (_) => onToggle(),
+          activeColor: Colors.blue,
         ),
-        child: Row(
+        title: Text(
+          text,
+          style: TextStyle(
+            color: isDark ? Colors.blueAccent : Colors.black,
+            fontSize: 16,
+            decoration: done ? TextDecoration.lineThrough : null,
+          ),
+        ),
+        trailing: Wrap(
           children: [
-            Checkbox(
-              value: done,
-              onChanged: (_) => onToggle(),
-            ),
-            Expanded(
-              child: Text(
-                text,
-                style: TextStyle(
-                  fontSize: 16,
-                  decoration:
-                      done ? TextDecoration.lineThrough : TextDecoration.none,
-                ),
-              ),
+            IconButton(
+              icon: const Icon(Icons.edit, color: Colors.blue),
+              onPressed: onEdit,
             ),
             IconButton(
-              icon: const Icon(Icons.edit, size: 20),
-              onPressed: onEdit,
+              icon: const Icon(Icons.delete, color: Colors.red),
+              onPressed: onDelete,
             ),
           ],
         ),
